@@ -1,0 +1,132 @@
+#!/usr/bin/env node
+
+const getStdin = require(`get-stdin`)
+
+// jest
+
+async function main() {
+  const [, , ...regexes] = process.argv
+
+  // const genericLocationRegex = `w/()([\\w\\/\\-\\.]+)\\:(\\d+):(\\d+)/gm`
+  // regexes.push(genericLocationRegex)
+
+  const data = await getStdin()
+  const locations = findAllMatches(data, regexes)
+
+  const output = addLocationPrefix(data, locations)
+    .join(`\n`)
+  process.stdout.write(output)
+}
+
+main()
+
+function addLocationPrefix(data, locations) {
+  const prefixedData = []
+  let i = 0
+  for (let row of data.split(/\n/)) {
+    row = row.replace(/^(.+)\:(\d+)\:(\d+)\:/, ``)
+    row = row.replace(new RegExp(`^` + process.env.PWD + `/*`), ``)
+    i++
+    let matched = false
+    for (const location of locations) {
+      if (location.errorRow === i) {
+        if (row === ``) {
+          row = `<errorformatregex: EMPTY ROW MATCH>`
+        }
+        prefixedData.push(
+          `${location.filename}:${location.row}:${location.col}:${location.errorType}:${row}`
+        )
+        matched = true
+        break
+      }
+    }
+    if (!matched) {
+      prefixedData.push(row)
+    }
+  }
+
+  return prefixedData
+}
+
+function findAllMatches(data, regexes) {
+  const locations = []
+  const matchedLines = new Set()
+  for (let regex of regexes) {
+    [, errorType = 'e', regexx] = regex.match(/^(\w*)(\/.+)/) || []
+
+    if (!regexx) {
+      throw new Error(`No regex found in: ${regex}`)
+    }
+
+    regex = eval(regexx)
+    locations.push(...findMatches(data, regex, errorType, matchedLines))
+  }
+  return locations
+}
+
+function findMatches(data, regex, errorType, matchedLines) {
+  const newlineIndexes = findNewlinesIndexes(data)
+  const locations = []
+
+  // Note: match.index is the same for all capture groups even non capturing (?:)
+  let match
+
+  const lastRowStartOffset = 0
+
+  while ((match = regex.exec(data)) !== null) {
+    const location = {errorType
+      , row: 0
+      , col: 0}
+    const index = match.index
+
+    if (match[0] === ``) {
+      throw new Error(`No match for regex: ${regex.source}.`)
+    }
+
+    let row = 0
+    for (const newlineIndex of newlineIndexes) {
+      row++
+      if (newlineIndex > index) {
+        break
+      }
+    }
+
+    if (matchedLines.has(row)) {
+      continue
+    }
+
+    matchedLines.add(row)
+
+    location.errorRow = row
+    // TBD
+    location.errorCol = index
+
+    if (match[2]) {
+      location.filename = match[2]
+    }
+
+    if (match[3]) {
+      location.row = match[3]
+    }
+
+    if (match[4]) {
+      location.col = match[4]
+    }
+
+    locations.push(location)
+  }
+
+  return locations
+}
+
+function findNewlinesIndexes(data) {
+  const re = /\n/gm
+  const newlines = []
+
+  let match
+
+  while ((match = re.exec(data)) !== null) {
+    newlines.push(match.index)
+  }
+  return newlines
+}

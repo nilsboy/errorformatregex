@@ -1,0 +1,20 @@
+{
+  "name": "@nilsboy/errorformatregex",
+  "version": "1.0.0",
+  "description": "Add vim's errorformat as prefix to lines matching an error regex.",
+  "bin": "bin/errorformatregex",
+  "scripts": {},
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/nilsboy/errorformatregex.git"
+  },
+  "keywords": [
+    "vim",
+    "quickfix",
+    "regex"
+  ],
+  "author": "Nils Boysen",
+  "license": "MIT",
+  "dependencies": {
+  }
+}
