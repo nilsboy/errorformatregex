@@ -1,6 +1,6 @@
 {
   "name": "@nilsboy/errorformatregex",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Add vim's errorformat as prefix to lines matching an error regex.",
   "bin": "bin/errorformatregex",
   "scripts": {},
@@ -16,5 +16,6 @@
   "author": "Nils Boysen",
   "license": "MIT",
   "dependencies": {
+    "get-stdin": "^5.0.1"
   }
 }
