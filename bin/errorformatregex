@@ -1,8 +1,7 @@
 #!/usr/bin/env node
 
 const getStdin = require(`get-stdin`)
-
-// jest
+const fs = require(`fs`)
 
 async function main() {
   const [, , ...regexes] = process.argv
@@ -34,7 +33,7 @@ function addLocationPrefix(data, locations) {
           row = `<errorformatregex: EMPTY ROW MATCH>`
         }
         prefixedData.push(
-          `${location.filename}:${location.row}:${location.col}:${location.errorType}:${row}`
+          `errorformatregex:${location.filename}:${location.row}:${location.col}:${location.errorType}:${row}`
         )
         matched = true
         break
@@ -52,7 +51,7 @@ function findAllMatches(data, regexes) {
   const locations = []
   const matchedLines = new Set()
   for (let regex of regexes) {
-    [, errorType = 'e', regexx] = regex.match(/^(\w*)(\/.+)/) || []
+    [, errorType = `e`, regexx] = regex.match(/^(\w*)(\/.+)/) || []
 
     if (!regexx) {
       throw new Error(`No regex found in: ${regex}`)
@@ -103,6 +102,9 @@ function findMatches(data, regex, errorType, matchedLines) {
 
     if (match[2]) {
       location.filename = match[2]
+      if (!fs.existsSync(location.filename)) {
+        continue
+      }
     }
 
     if (match[3]) {

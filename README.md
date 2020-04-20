@@ -1,1 +1,1 @@
-Add vim's errorformat as prefix to lines matching an error regex.
+Add vim's errorformat as prefix to lines matching a regex.
