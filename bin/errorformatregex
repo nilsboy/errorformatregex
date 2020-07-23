@@ -43,6 +43,8 @@ class Errorformatregex {
     return require(`neodoc`).run(
       require(`redent`)(
         `
+        ${require(`path`).basename(__filename)} v${require(`../package`).version}
+
         ${require(`../package`).description}
 
         Example regex option: 'e/error.* in file (\S+) at (\d+):(\d+)/igm'
