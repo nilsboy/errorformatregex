@@ -2,133 +2,191 @@
 
 const getStdin = require(`get-stdin`)
 const fs = require(`fs`)
+const path = require(`path`)
+
+process.on(`unhandledRejection`, (reason, p) => {
+  console.error(reason)
+  process.exit(1)
+})
+
+class Errorformatregex {
+  constructor() {
+    this.locations = []
+    // key = filename#row#col
+    this.srcLocations = new Set()
+    this.lineBreakIndexes = []
+  }
+
+  async run() {
+    this.argv = this.parseArgv()
+    if (this.argv[`--debug`]) {
+      this.debug = true
+    }
+
+    this.data = await getStdin()
+    this.findLineBreakIndexes()
+
+    this.findAllMatches(this.argv[`<regex>`])
+
+    this.filename = this.argv[`--filename`]
+
+    if (this.debug) {
+      console.error(`Found locations: ${this.locations.length}`)
+      console.error(`Using filename: ${this.filename}`)
+    }
+
+    const output = this.addLocationPrefix().join(`\n`)
+    process.stdout.write(output)
+  }
+
+  parseArgv() {
+    return require(`neodoc`).run(
+      require(`redent`)(
+        `
+        ${require(`../package`).description}
+
+        Example regex option: 'e/error.* in file (\S+) at (\d+):(\d+)/igm'
+
+        Uses capture groups to set the filename (1), row (2) and column (3).
+        The first character indicates error (e), warning (w) or info (i).
+        The last matching regex takes precedence.
+
+        Errorformat needs to be set like this:
+        let &errorformat  = 'errorformatregex:%f:%l:%c:%t:%m'
+
+        Usage:
+          ${require(`path`).basename(__filename)} [options] <regex>...
+
+        Options:
+          -h --help            Show this screen.
+          --filename=filename  Provide filename if error format does not provide one.
+          --debug              Debug output.
+      `
+      ),
+      {
+        optionsFirst: true,
+        smartOptions: true,
+      }
+    )
+  }
+
+  findAllMatches(regexes) {
+    for (let regex of regexes) {
+      const [, errorType = `e`, regexx] = regex.match(/^(\w*)(\/.+)/) || []
+
+      if (!regexx) {
+        throw new Error(`No regex found in: ${regex}`)
+      }
+
+      regex = eval(regexx)
+      this.findMatches(regex, errorType)
+    }
+  }
+
+  findMatches(regex, errorType) {
+    // Note: match.index is the same for all capture groups even non capturing (?:)
+    let match
+    let lastIndex = null
+    // regex has to be global - otherwise results in endless loop
+    while ((match = regex.exec(this.data)) !== null) {
+      if(match.index == lastIndex) {
+        throw new Error(`Only regexes with global a flag are supported.`)
+      }
+      lastIndex = match.index
+
+      const location = { errorType, row: 0, col: 0 }
+      const index = match.index
+
+      if (match[0] === ``) {
+        throw new Error(`No match for regex: ${regex.source}.`)
+      }
+
+      let row = 0
+      for (const lineBreak of this.lineBreakIndexes) {
+        if (lineBreak > index) {
+          break
+        }
+        row++
+      }
+
+      location.errorIndex = index
+      location.errorRow = row
+      // location.errorCol = TBD
+
+      location.filename = ` `
+      if (match[1]) {
+        location.filename = match[1]
+        // if (!fs.existsSync(location.filename)) {
+        //   if (this.debug) {
+        //     console.error(
+        //       `Skipping entry for missing filename: ${location.filename}.`
+        //     )
+        //   }
+        //   continue
+        // }
+      }
+
+      if (match[2]) {
+        location.row = match[2]
+      }
+
+      if (match[3]) {
+        location.col = match[3]
+      }
+
+      const hash = `${location.filename}#${location.row}#${location.col}`
+      if (!this.srcLocations.has(hash)) {
+        this.locations[row] = location
+      }
+      this.srcLocations.add(hash)
+    }
+  }
+
+  findLineBreakIndexes() {
+    const re = /\n/gm
+    let match
+    while ((match = re.exec(this.data)) !== null) {
+      this.lineBreakIndexes.push(match.index)
+    }
+  }
+
+  addLocationPrefix() {
+    const prefixedData = []
+    let i = -1
+    for (let row of this.data.split(/\n/)) {
+      row = row.replace(/^(.+)\:(\d+)\:(\d+)\:/, ``)
+      row = row.replace(new RegExp(`^` + process.env.PWD + `/*`), ``)
+      i++
+      let matched = false
+      let prefixed = row
+      for (const location of this.locations) {
+        if (location == null) {
+          continue
+        }
+        if (location.errorRow === i) {
+          if (row === ``) {
+            prefixed = `<errorformatregex: EMPTY ROW MATCH>`
+          }
+          if (this.filename) {
+            location.filename = this.filename
+          }
+          if (!location.filename) {
+            // errorformat does not match if filename is empty
+            location.filename = " "
+          }
+          prefixed = `errorformatregex:${location.filename}:${location.row}:${location.col}:${location.errorType}:${row}`
+        }
+      }
+      prefixedData.push(prefixed)
+    }
+
+    return prefixedData
+  }
+}
 
 async function main() {
-  const [, , ...regexes] = process.argv
-
-  // const genericLocationRegex = `w/()([\\w\\/\\-\\.]+)\\:(\\d+):(\\d+)/gm`
-  // regexes.push(genericLocationRegex)
-
-  const data = await getStdin()
-  const locations = findAllMatches(data, regexes)
-
-  const output = addLocationPrefix(data, locations)
-    .join(`\n`)
-  process.stdout.write(output)
+  const main = new Errorformatregex()
+  await main.run()
 }
 
 main()
-
-function addLocationPrefix(data, locations) {
-  const prefixedData = []
-  let i = 0
-  for (let row of data.split(/\n/)) {
-    row = row.replace(/^(.+)\:(\d+)\:(\d+)\:/, ``)
-    row = row.replace(new RegExp(`^` + process.env.PWD + `/*`), ``)
-    i++
-    let matched = false
-    for (const location of locations) {
-      if (location.errorRow === i) {
-        if (row === ``) {
-          row = `<errorformatregex: EMPTY ROW MATCH>`
-        }
-        prefixedData.push(
-          `errorformatregex:${location.filename}:${location.row}:${location.col}:${location.errorType}:${row}`
-        )
-        matched = true
-        break
-      }
-    }
-    if (!matched) {
-      prefixedData.push(row)
-    }
-  }
-
-  return prefixedData
-}
-
-function findAllMatches(data, regexes) {
-  const locations = []
-  const matchedLines = new Set()
-  for (let regex of regexes) {
-    [, errorType = `e`, regexx] = regex.match(/^(\w*)(\/.+)/) || []
-
-    if (!regexx) {
-      throw new Error(`No regex found in: ${regex}`)
-    }
-
-    regex = eval(regexx)
-    locations.push(...findMatches(data, regex, errorType, matchedLines))
-  }
-  return locations
-}
-
-function findMatches(data, regex, errorType, matchedLines) {
-  const newlineIndexes = findNewlinesIndexes(data)
-  const locations = []
-
-  // Note: match.index is the same for all capture groups even non capturing (?:)
-  let match
-
-  const lastRowStartOffset = 0
-
-  while ((match = regex.exec(data)) !== null) {
-    const location = {errorType
-      , row: 0
-      , col: 0}
-    const index = match.index
-
-    if (match[0] === ``) {
-      throw new Error(`No match for regex: ${regex.source}.`)
-    }
-
-    let row = 0
-    for (const newlineIndex of newlineIndexes) {
-      row++
-      if (newlineIndex > index) {
-        break
-      }
-    }
-
-    if (matchedLines.has(row)) {
-      continue
-    }
-
-    matchedLines.add(row)
-
-    location.errorRow = row
-    // TBD
-    location.errorCol = index
-
-    if (match[2]) {
-      location.filename = match[2]
-      if (!fs.existsSync(location.filename)) {
-        continue
-      }
-    }
-
-    if (match[3]) {
-      location.row = match[3]
-    }
-
-    if (match[4]) {
-      location.col = match[4]
-    }
-
-    locations.push(location)
-  }
-
-  return locations
-}
-
-function findNewlinesIndexes(data) {
-  const re = /\n/gm
-  const newlines = []
-
-  let match
-
-  while ((match = re.exec(data)) !== null) {
-    newlines.push(match.index)
-  }
-  return newlines
-}

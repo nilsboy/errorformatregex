@@ -3,7 +3,9 @@
   "version": "1.0.2",
   "description": "Add vim's errorformat as prefix to lines matching an error regex.",
   "bin": "bin/errorformatregex",
-  "scripts": {},
+  "scripts": {
+    "test": "jest"
+  },
   "repository": {
     "type": "git",
     "url": "https://github.com/nilsboy/errorformatregex.git"
@@ -16,6 +18,12 @@
   "author": "Nils Boysen",
   "license": "MIT",
   "dependencies": {
-    "get-stdin": "^5.0.1"
+    "get-stdin": "^8.0.0",
+    "get-stream": "^5.1.0",
+    "neodoc": "^2.0.2",
+    "redent": "^3.0.0"
+  },
+  "devDependencies": {
+    "jest": "^26.1.0"
   }
 }
