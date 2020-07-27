@@ -59,27 +59,26 @@ test(`prefer last matching regex`, async () => {
   )
 })
 
-test(`only match first of two matching lines of same location`, async () => {
-  const given = `
-MyError: first: foo bar
-MyError: second: foo bar
-`
-  const expected = `
-errorformatregex: :0:0:e:MyError: first: foo bar
-MyError: second: foo bar
-`
+// TBD: good idea?
+// test(`only match first of two matching lines of same location`, async () => {
+//   const given = `
+// MyError: first: foo bar
+// MyError: second: foo bar
+// `
+//   const expected = `
+// errorformatregex: :0:0:e:MyError: first: foo bar
+// MyError: second: foo bar
+// `
 
-  assert.equal(await run(given, [`e/error/ig`]), expected)
-})
+//   assert.equal(await run(given, [`e/error/ig`]), expected)
+// })
 
 test(`use last matching regex`, async () => {
   const given = `
 MyError: test/main.test.js: foo bar (754:10)
-MyError: test/main.test.js: foo bar (754:10)
   `
   const expected = `
 errorformatregex:test/main.test.js:0:0:e:MyError: test/main.test.js: foo bar (754:10)
-MyError: test/main.test.js: foo bar (754:10)
   `
 
   assert.equal(
@@ -89,4 +88,15 @@ MyError: test/main.test.js: foo bar (754:10)
     ]),
     expected
   )
+})
+
+test(`delete previously matched regex`, async () => {
+  const given = `
+MyError: test/main.test.js: foo bar (754:10)
+  `
+  const expected = `
+MyError: test/main.test.js: foo bar (754:10)
+  `
+
+  assert.equal(await run(given, [`e/error.*$/igm`, `d/error.*$/igm`]), expected)
 })

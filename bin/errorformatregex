@@ -43,14 +43,16 @@ class Errorformatregex {
     return require(`neodoc`).run(
       require(`redent`)(
         `
-        ${require(`path`).basename(__filename)} v${require(`../package`).version}
+        ${require(`path`).basename(__filename)} v${
+          require(`../package`).version
+        }
 
         ${require(`../package`).description}
 
         Example regex option: 'e/error.* in file (\S+) at (\d+):(\d+)/igm'
 
         Uses capture groups to set the filename (1), row (2) and column (3).
-        The first character indicates error (e), warning (w) or info (i).
+        The first character indicates error (e), warning (w), info (i), normal (n), delete previously found error location (d).
         The last matching regex takes precedence.
 
         Errorformat needs to be set like this:
@@ -91,7 +93,7 @@ class Errorformatregex {
     let lastIndex = null
     // regex has to be global - otherwise results in endless loop
     while ((match = regex.exec(this.data)) !== null) {
-      if(match.index == lastIndex) {
+      if (match.index == lastIndex) {
         throw new Error(`Only regexes with global a flag are supported.`)
       }
       lastIndex = match.index
@@ -137,9 +139,10 @@ class Errorformatregex {
       }
 
       const hash = `${location.filename}#${location.row}#${location.col}`
-      if (!this.srcLocations.has(hash)) {
-        this.locations[row] = location
-      }
+      // TBD allow dupliates without location?:
+      // if (!this.srcLocations.has(hash)) {
+      this.locations[row] = location
+      // }
       this.srcLocations.add(hash)
     }
   }
@@ -154,29 +157,36 @@ class Errorformatregex {
 
   addLocationPrefix() {
     const prefixedData = []
-    let i = -1
-    for (let row of this.data.split(/\n/)) {
-      row = row.replace(/^(.+)\:(\d+)\:(\d+)\:/, ``)
-      row = row.replace(new RegExp(`^` + process.env.PWD + `/*`), ``)
-      i++
+    let rowNumber = -1
+    for (let rowData of this.data.split(/\n/)) {
+      // for testing errorformatregex itself
+      rowData = rowData.replace(/^errorformatregex:/, ``)
+      // ?:
+      // rowData = rowData.replace(new RegExp(`^` + process.env.PWD + `/*`), ``)
+      rowNumber++
       let matched = false
-      let prefixed = row
+      let prefixed = rowData
       for (const location of this.locations) {
         if (location == null) {
           continue
         }
-        if (location.errorRow === i) {
-          if (row === ``) {
-            prefixed = `<errorformatregex: EMPTY ROW MATCH>`
-          }
-          if (this.filename) {
-            location.filename = this.filename
-          }
-          if (!location.filename) {
-            // errorformat does not match if filename is empty
-            location.filename = " "
-          }
-          prefixed = `errorformatregex:${location.filename}:${location.row}:${location.col}:${location.errorType}:${row}`
+        if (location.errorRow !== rowNumber) {
+          continue
+        }
+        if (rowData === ``) {
+          prefixed = `<errorformatregex: EMPTY ROW MATCH>`
+        }
+        if (this.filename) {
+          location.filename = this.filename
+        }
+        if (!location.filename) {
+          // errorformat does not match if filename is empty
+          location.filename = " "
+        }
+        if (location.errorType === `d`) {
+          prefixed = rowData
+        } else {
+          prefixed = `errorformatregex:${location.filename}:${location.row}:${location.col}:${location.errorType}:${rowData}`
         }
       }
       prefixedData.push(prefixed)
