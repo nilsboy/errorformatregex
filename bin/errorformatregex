@@ -15,20 +15,19 @@ class Errorformatregex {
     // key = filename#row#col
     this.srcLocations = new Set()
     this.lineBreakIndexes = []
+    this.argv = {}
   }
 
   async run() {
-    this.argv = this.parseArgv()
     if (this.argv[`--debug`]) {
       this.debug = true
     }
 
-    this.data = await getStdin()
-    this.findLineBreakIndexes()
-
-    this.findAllMatches(this.argv[`<regex>`])
-
     this.filename = this.argv[`--filename`]
+
+    this.findLineBreakIndexes()
+    
+    await this.findAllMatches(this.argv[`<regex>`])
 
     if (this.debug) {
       console.error(`Found locations: ${this.locations.length}`)
@@ -49,10 +48,12 @@ class Errorformatregex {
 
         ${require(`../package`).description}
 
-        Example regex option: 'e/error.* in file (\S+) at (\d+):(\d+)/igm'
+        Example regex option: 'e/error.* in file (\\S+) at (\\d+):(\\d+)/igm'
 
         Uses capture groups to set the filename (1), row (2) and column (3).
-        The first character indicates error (e), warning (w), info (i), normal (n), delete previously found error location (d).
+        The first character indicates error (e), warning (w), info (i),
+        normal (n), delete previously found error location (d),
+        find file location by regex (r).
         The last matching regex takes precedence.
 
         Errorformat needs to be set like this:
@@ -74,7 +75,8 @@ class Errorformatregex {
     )
   }
 
-  findAllMatches(regexes) {
+  async findAllMatches(regexes) {
+    
     for (let regex of regexes) {
       const [, errorType = `e`, regexx] = regex.match(/^(\w*)(\/.+)/) || []
 
@@ -82,19 +84,19 @@ class Errorformatregex {
         throw new Error(`No regex found in: ${regex}`)
       }
 
-      regex = eval(regexx)
-      this.findMatches(regex, errorType)
+      let evaledRegex = eval(regexx)
+      await this.findMatches(evaledRegex, errorType)
     }
   }
 
-  findMatches(regex, errorType) {
+  async findMatches(regex, errorType) {
     // Note: match.index is the same for all capture groups even non capturing (?:)
     let match
     let lastIndex = null
     // regex has to be global - otherwise results in endless loop
     while ((match = regex.exec(this.data)) !== null) {
       if (match.index == lastIndex) {
-        throw new Error(`Only regexes with global a flag are supported.`)
+        throw new Error(`Only regexes with a global flag are supported.`)
       }
       lastIndex = match.index
 
@@ -138,6 +140,35 @@ class Errorformatregex {
         location.col = match[3]
       }
 
+      if (errorType === `r`) {
+        location.errorType = `e`
+        let locationRegex = ``
+        if (match[2]) {
+          locationRegex = match[2]
+        } else {
+          locationRegex = match[1]
+          location.filename = this.filename
+        }
+        const otherFile = new Errorformatregex()
+        otherFile.argv['<regex>'] = [ `e/${locationRegex}/igm` ]
+        otherFile.argv.filename = location.filename
+        otherFile.data = fs.readFileSync(location.filename).toString()
+        otherFile.findLineBreakIndexes()
+        await otherFile.findAllMatches(otherFile.argv[`<regex>`])
+        
+        for(const otherLocation of otherFile.locations) {
+          if(!otherLocation) {
+            continue
+          }
+          
+          location.row = otherLocation.errorRow - 1
+          // TBD:
+          // location.col = 1
+          location.errorIndex = otherLocation.errorIndex
+          break
+        }
+      }
+
       const hash = `${location.filename}#${location.row}#${location.col}`
       // TBD allow dupliates without location?:
       // if (!this.srcLocations.has(hash)) {
@@ -161,6 +192,8 @@ class Errorformatregex {
     for (let rowData of this.data.split(/\n/)) {
       // for testing errorformatregex itself
       rowData = rowData.replace(/^errorformatregex:/, ``)
+      // remove potentially existing errorformat regexes.
+      rowData = rowData.replace(/^(.+)\:(\d+)\:(\d+)\:/, ``)
       // ?:
       // rowData = rowData.replace(new RegExp(`^` + process.env.PWD + `/*`), ``)
       rowNumber++
@@ -198,6 +231,8 @@ class Errorformatregex {
 
 async function main() {
   const main = new Errorformatregex()
+  main.argv = main.parseArgv()
+  main.data = await getStdin()
   await main.run()
 }
 
