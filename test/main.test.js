@@ -103,7 +103,7 @@ MyError: test/main.test.js: foo bar (754:10)
 
 test(`use regex to find location`, async () => {
   const given = `MyError: test/main.test.js: foo bar`
-  const expected = `errorformatregex:test/main.test.js:13:0:e:MyError: test/main.test.js: foo bar`
+  const expected = `errorformatregex:test/main.test.js:12:0:e:MyError: test/main.test.js: foo bar`
 
   assert.equal(await run(given, [`r/error\: (.+?)\: (.+)$/igm`]), expected)
 })

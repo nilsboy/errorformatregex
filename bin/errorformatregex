@@ -219,7 +219,8 @@ class Errorformatregex {
         if (location.errorType === `d`) {
           prefixed = rowData
         } else {
-          prefixed = `errorformatregex:${location.filename}:${location.row}:${location.col}:${location.errorType}:${rowData}`
+          // rowData: needs to have a value to be a valid errorformat
+          prefixed = `errorformatregex:${location.filename}:${location.row}:${location.col}:${location.errorType}:${rowData ? rowData : ` `}`
         }
       }
       prefixedData.push(prefixed)
