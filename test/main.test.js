@@ -1,4 +1,4 @@
-const getStream = require(`get-stream`)
+const getStream = require("get-stream")
 const spawn = require("child_process").spawn
 const assert = require(`assert`)
 
@@ -21,7 +21,7 @@ test(`error without location`, async () => {
   const given = `MyError: foo bar (754:10)`
   const expected = `errorformatregex: :0:0:e:MyError: foo bar (754:10)`
 
-  assert.equal(await run(given, [`e/error/igm`]), expected)
+  assert.equal(await run(given, [`e/error/is`]), expected)
 })
 
 test(`with filename`, async () => {
@@ -29,7 +29,7 @@ test(`with filename`, async () => {
   const expected = `errorformatregex:test/main.test.js:0:0:e:MyError: test/main.test.js: foo bar (754:10)`
 
   assert.equal(
-    await run(given, [`e/error.*?([\\w/.\\-@-]+\\/[\\w./\\-@-]+)/igm`]),
+    await run(given, [`e/error.*?(?<file>[\\w/.\\-@-]+\\/[\\w./\\-@-]+)/is`]),
     expected
   )
 })
@@ -40,7 +40,7 @@ test(`with location`, async () => {
 
   assert.equal(
     await run(given, [
-      `e/error.*?([\\w/.\\-@]+\\/[\\w./\\-@]+).*?(\\d+)\\:(\\d+)/igm`,
+      `e/error.*?(?<file>[\\w/.\\-@]+\\/[\\w./\\-@]+).*?(?<row>\\d+)\\:(?<col>\\d+)/is`,
     ]),
     expected
   )
@@ -52,8 +52,8 @@ test(`prefer last matching regex`, async () => {
 
   assert.equal(
     await run(given, [
-      `e/error/igm`,
-      `e/error.*?([\\w/.\\-@]+\\/[\\w./\\-@]+)/igm`,
+      `e/error/is`,
+      `e/error.*?(?<file>[\\w/.\\-@]+\\/[\\w./\\-@]+)/is`,
     ]),
     expected
   )
@@ -83,8 +83,8 @@ errorformatregex:test/main.test.js:0:0:e:MyError: test/main.test.js: foo bar (75
 
   assert.equal(
     await run(given, [
-      `e/error.*$/igm`,
-      `e/error.*?([\\w/.\\-@]+\\/[\\w./\\-@]+)/igm`,
+      `e/error.*$/is`,
+      `e/error.*?(?<file>[\\w/.\\-@]+\\/[\\w./\\-@]+)/is`,
     ]),
     expected
   )
@@ -98,12 +98,12 @@ MyError: test/main.test.js: foo bar (754:10)
 MyError: test/main.test.js: foo bar (754:10)
   `
 
-  assert.equal(await run(given, [`e/error.*$/igm`, `d/error.*$/igm`]), expected)
+  assert.equal(await run(given, [`e/error.*$/is`, `d/error.*$/is`]), expected)
 })
 
 test(`use regex to find location`, async () => {
   const given = `MyError: test/main.test.js: foo bar`
   const expected = `errorformatregex:test/main.test.js:12:0:e:MyError: test/main.test.js: foo bar`
 
-  assert.equal(await run(given, [`r/error\: (.+?)\: (.+)$/igm`]), expected)
+  assert.equal(await run(given, [`r/error\: (?<file>.+?)\: (?<location>.+)$/is`]), expected)
 })

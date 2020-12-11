@@ -1,7 +1,7 @@
 {
   "name": "@nilsboy/errorformatregex",
-  "version": "1.0.2",
-  "description": "Add vim's errorformat as prefix to lines matching an error regex.",
+  "version": "2.0.0",
+  "description": "Find error locations in text and prefix them for use with vim's quickfix.",
   "bin": "bin/errorformatregex",
   "scripts": {
     "test": "jest"
@@ -21,7 +21,8 @@
     "get-stdin": "^8.0.0",
     "get-stream": "^5.1.0",
     "neodoc": "^2.0.2",
-    "redent": "^3.0.0"
+    "redent": "^3.0.0",
+    "xregexp": "^4.4.0"
   },
   "devDependencies": {
     "jest": "^26.1.0"

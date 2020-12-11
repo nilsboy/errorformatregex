@@ -3,6 +3,7 @@
 const getStdin = require(`get-stdin`)
 const fs = require(`fs`)
 const path = require(`path`)
+var XRegExp = require("xregexp")
 
 process.on(`unhandledRejection`, (reason, p) => {
   console.error(reason)
@@ -26,7 +27,7 @@ class Errorformatregex {
     this.filename = this.argv[`--filename`]
 
     this.findLineBreakIndexes()
-    
+
     await this.findAllMatches(this.argv[`<regex>`])
 
     if (this.debug) {
@@ -48,17 +49,6 @@ class Errorformatregex {
 
         ${require(`../package`).description}
 
-        Example regex option: 'e/error.* in file (\\S+) at (\\d+):(\\d+)/igm'
-
-        Uses capture groups to set the filename (1), row (2) and column (3).
-        The first character indicates error (e), warning (w), info (i),
-        normal (n), delete previously found error location (d),
-        find file location by regex (r).
-        The last matching regex takes precedence.
-
-        Errorformat needs to be set like this:
-        let &errorformat  = 'errorformatregex:%f:%l:%c:%t:%m'
-
         Usage:
           ${require(`path`).basename(__filename)} [options] <regex>...
 
@@ -66,6 +56,35 @@ class Errorformatregex {
           -h --help            Show this screen.
           --filename=filename  Provide filename if error format does not provide one.
           --debug              Debug output.
+
+        See the xregexp module for regex syntax and flags.
+
+        Example regex option:
+          'e/error.* in file (?<file>\\S+) at (?<row>\\d+):(?<col>\\d+)/is'
+
+        Format:
+          'error type/regex/regex flags'
+
+        Available error types:
+          - error (e)
+          - warning (w)
+          - info (i)
+          - normal (n)
+          - delete ignore error location (d),
+          - use matched file capture group as file name to find match in (r).
+            example: 'r/error\: (?<file>.+?)\: (?<location>.+)$/is'
+
+        Available capture group names:
+          - file
+          - row
+          - col (column)
+          - location
+
+        The last matching regex takes precedence.
+
+        To parse the result in vim the errorformat needs to be set:
+        let &errorformat = 'errorformatregex:%f:%l:%c:%t:%m'
+
       `
       ),
       {
@@ -75,36 +94,27 @@ class Errorformatregex {
     )
   }
 
-  async findAllMatches(regexes) {
-    
-    for (let regex of regexes) {
-      const [, errorType = `e`, regexx] = regex.match(/^(\w*)(\/.+)/) || []
+  async findAllMatches(errorOptions) {
+    for (let errorOption of errorOptions) {
+      const [, errorType = `e`, regex, flags] =
+        errorOption.match(/^(\w*)\/(.+)\/(.*)$/) || []
 
-      if (!regexx) {
-        throw new Error(`No regex found in: ${regex}`)
+      if (!regex) {
+        throw new Error(`No regex found in: ${errorOption}`)
       }
 
-      let evaledRegex = eval(regexx)
-      await this.findMatches(evaledRegex, errorType)
+      await this.findMatches(errorType, regex, flags)
     }
   }
 
-  async findMatches(regex, errorType) {
-    // Note: match.index is the same for all capture groups even non capturing (?:)
-    let match
-    let lastIndex = null
-    // regex has to be global - otherwise results in endless loop
-    while ((match = regex.exec(this.data)) !== null) {
-      if (match.index == lastIndex) {
-        throw new Error(`Only regexes with a global flag are supported.`)
-      }
-      lastIndex = match.index
-
+  async findMatches(errorType, regex, flags) {
+    const cregex = XRegExp(regex, flags)
+    XRegExp.forEach(this.data, cregex, async (match, i) => {
       const location = { errorType, row: 0, col: 0 }
       const index = match.index
 
       if (match[0] === ``) {
-        throw new Error(`No match for regex: ${regex.source}.`)
+        throw new Error(`No match for regex: ${regex}.`)
       }
 
       let row = 0
@@ -120,8 +130,8 @@ class Errorformatregex {
       // location.errorCol = TBD
 
       location.filename = ` `
-      if (match[1]) {
-        location.filename = match[1]
+      if (match.file) {
+        location.filename = match.file
         // if (!fs.existsSync(location.filename)) {
         //   if (this.debug) {
         //     console.error(
@@ -132,35 +142,24 @@ class Errorformatregex {
         // }
       }
 
-      if (match[2]) {
-        location.row = match[2]
-      }
-
-      if (match[3]) {
-        location.col = match[3]
-      }
+      ;[location.row = 0] = [match.row]
+      ;[location.col = 0] = [match.col]
 
       if (errorType === `r`) {
         location.errorType = `e`
-        let locationRegex = ``
-        if (match[2]) {
-          locationRegex = match[2]
-        } else {
-          locationRegex = match[1]
-          location.filename = this.filename
-        }
+        const locationRegex = match.location
         const otherFile = new Errorformatregex()
-        otherFile.argv['<regex>'] = [ `e/${locationRegex}/igm` ]
         otherFile.argv.filename = location.filename
         otherFile.data = fs.readFileSync(location.filename).toString()
+        otherFile.argv["<regex>"] = [`e/${locationRegex}/igm`]
         otherFile.findLineBreakIndexes()
         await otherFile.findAllMatches(otherFile.argv[`<regex>`])
-        
-        for(const otherLocation of otherFile.locations) {
-          if(!otherLocation) {
+
+        for (const otherLocation of otherFile.locations) {
+          if (!otherLocation) {
             continue
           }
-          
+
           location.row = otherLocation.errorRow - 1
           // TBD:
           // location.col = 1
@@ -170,12 +169,14 @@ class Errorformatregex {
       }
 
       const hash = `${location.filename}#${location.row}#${location.col}`
+
       // TBD allow dupliates without location?:
       // if (!this.srcLocations.has(hash)) {
+
       this.locations[row] = location
       // }
       this.srcLocations.add(hash)
-    }
+    })
   }
 
   findLineBreakIndexes() {
@@ -220,7 +221,9 @@ class Errorformatregex {
           prefixed = rowData
         } else {
           // rowData: needs to have a value to be a valid errorformat
-          prefixed = `errorformatregex:${location.filename}:${location.row}:${location.col}:${location.errorType}:${rowData ? rowData : ` `}`
+          prefixed = `errorformatregex:${location.filename}:${location.row}:${
+            location.col
+          }:${location.errorType}:${rowData ? rowData : ` `}`
         }
       }
       prefixedData.push(prefixed)
