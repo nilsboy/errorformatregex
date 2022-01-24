@@ -5,6 +5,12 @@ const fs = require(`fs`)
 const path = require(`path`)
 var XRegExp = require("xregexp")
 
+// from https://github.com/chalk/ansi-regex/blob/main/index.js
+const ansiRegex = [
+  "[\\u001B\\u009B][[\\]()#;?]*(?:(?:(?:(?:;[-a-zA-Z\\d\\/#&.:=?%@~_]+)*|[a-zA-Z\\d]+(?:;[-a-zA-Z\\d\\/#&.:=?%@~_]*)*)?\\u0007)",
+  "(?:(?:\\d{1,4}(?:;\\d{0,4})*)?[\\dA-PR-TZcf-nq-uy=><~]))",
+].join("|")
+
 process.on(`unhandledRejection`, (reason, p) => {
   console.error(reason)
   process.exit(1)
@@ -109,6 +115,7 @@ class Errorformatregex {
 
   async findMatches(errorType, regex, flags) {
     const cregex = XRegExp(regex, flags)
+
     XRegExp.forEach(this.data, cregex, async (match, i) => {
       const location = { errorType, row: 0, col: 0 }
       const index = match.index
@@ -195,8 +202,6 @@ class Errorformatregex {
       rowData = rowData.replace(/^errorformatregex:/, ``)
       // remove potentially existing errorformat regexes.
       rowData = rowData.replace(/^(.+)\:(\d+)\:(\d+)\:/, ``)
-      // ?:
-      // rowData = rowData.replace(new RegExp(`^` + process.env.PWD + `/*`), ``)
       rowNumber++
       let matched = false
       let prefixed = rowData
@@ -237,6 +242,10 @@ async function main() {
   const main = new Errorformatregex()
   main.argv = main.parseArgv()
   main.data = await getStdin()
+
+  // strip ansi codes
+  main.data = main.data.replace(new RegExp(ansiRegex, "g"), ``)
+
   await main.run()
 }
 
