@@ -1,6 +1,6 @@
 {
   "name": "@nilsboy/errorformatregex",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "Find error locations in text and prefix them for use with vim's quickfix.",
   "bin": "bin/errorformatregex",
   "scripts": {
