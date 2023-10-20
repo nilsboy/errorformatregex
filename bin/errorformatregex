@@ -87,6 +87,8 @@ class Errorformatregex {
           - location
 
         The last matching regex takes precedence.
+        If a file capture group is specified and the file does not exist the error
+        location is ignored.
 
         To parse the result in vim the errorformat needs to be set:
         let &errorformat = 'errorformatregex:%f:%l:%c:%t:%m'
@@ -141,7 +143,7 @@ class Errorformatregex {
         location.filename = match.file
       }
 
-      if (!fs.existsSync(location.filename)) {
+      if (location.filename.match(/\S+/) && !fs.existsSync(location.filename)) {
         if (this.debug) {
           console.error(
             `Skipping entry for missing filename: ${location.filename}.`
