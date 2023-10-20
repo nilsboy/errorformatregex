@@ -139,14 +139,15 @@ class Errorformatregex {
       location.filename = ` `
       if (match.file) {
         location.filename = match.file
-        // if (!fs.existsSync(location.filename)) {
-        //   if (this.debug) {
-        //     console.error(
-        //       `Skipping entry for missing filename: ${location.filename}.`
-        //     )
-        //   }
-        //   continue
-        // }
+      }
+
+      if (!fs.existsSync(location.filename)) {
+        if (this.debug) {
+          console.error(
+            `Skipping entry for missing filename: ${location.filename}.`
+          )
+        }
+        return
       }
 
       ;[location.row = 0] = [match.row]
@@ -245,7 +246,6 @@ async function main() {
 
   // strip ansi codes
   main.data = main.data.replace(new RegExp(ansiRegex, "g"), ``)
-
   await main.run()
 }
 
