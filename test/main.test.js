@@ -1,13 +1,19 @@
-const getStream = require("get-stream")
 const spawn = require("child_process").spawn
 const assert = require(`assert`)
 
+async function readStream(stream) {
+  const chunks = []
+  for await (const chunk of stream) chunks.push(chunk)
+  return Buffer.concat(chunks).toString()
+}
+
 async function run(given, options) {
   const child = spawn("bin/errorformatregex", options)
+  const stdoutPromise = readStream(child.stdout)
   child.stdin.write(given)
   child.stdin.end()
   child.stderr.pipe(process.stderr)
-  return getStream(child.stdout)
+  return stdoutPromise
 }
 
 test(`no error`, async () => {
@@ -103,7 +109,8 @@ MyError: test/main.test.js: foo bar (754:10)
 
 test(`use regex to find location`, async () => {
   const given = `MyError: test/main.test.js: foo bar`
-  const expected = `errorformatregex:test/main.test.js:12:0:e:MyError: test/main.test.js: foo bar`
+  // row is the line of the first `foo bar` in this test file (0-based)
+  const expected = `errorformatregex:test/main.test.js:18:0:e:MyError: test/main.test.js: foo bar`
 
   assert.equal(await run(given, [`r/error\: (?<file>.+?)\: (?<location>.+)$/is`]), expected)
 })

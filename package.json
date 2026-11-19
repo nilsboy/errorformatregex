@@ -17,9 +17,11 @@
   ],
   "author": "Nils Boysen",
   "license": "MIT",
+  "engines": {
+    "node": ">=22.12"
+  },
   "dependencies": {
     "get-stdin": "^9.0.0",
-    "get-stream": "^8.0.1",
     "neodoc": "^2.0.2",
     "redent": "^4.0.0",
     "xregexp": "^5.1.1"

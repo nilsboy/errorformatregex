@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-const getStdin = require(`get-stdin`)
+const getStdin = require(`get-stdin`).default
 const fs = require(`fs`)
 const path = require(`path`)
 var XRegExp = require("xregexp")
@@ -47,7 +47,7 @@ class Errorformatregex {
 
   parseArgv() {
     return require(`neodoc`).run(
-      require(`redent`)(
+      require(`redent`).default(
         `
         ${require(`path`).basename(__filename)} v${
           require(`../package`).version
@@ -138,9 +138,12 @@ class Errorformatregex {
       location.errorRow = row
       // location.errorCol = TBD
 
+      // xregexp ≥5 puts named capture properties on match.groups (namespacing feature)
+      const groups = match.groups || match
+
       location.filename = ` `
-      if (match.file) {
-        location.filename = match.file
+      if (groups.file) {
+        location.filename = groups.file
       }
 
       if (location.filename.match(/\S+/) && !fs.existsSync(location.filename)) {
@@ -152,12 +155,12 @@ class Errorformatregex {
         return
       }
 
-      ;[location.row = 0] = [match.row]
-      ;[location.col = 0] = [match.col]
+      ;[location.row = 0] = [groups.row]
+      ;[location.col = 0] = [groups.col]
 
       if (errorType === `r`) {
         location.errorType = `e`
-        const locationRegex = match.location
+        const locationRegex = groups.location
         const otherFile = new Errorformatregex()
         otherFile.argv.filename = location.filename
         otherFile.data = fs.readFileSync(location.filename).toString()
