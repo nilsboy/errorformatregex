@@ -2,9 +2,16 @@
   "name": "@nilsboy/errorformatregex",
   "version": "3.0.0",
   "description": "Find error locations in text and prefix them for use with vim's quickfix.",
+  "type": "module",
   "bin": "bin/errorformatregex",
+  "files": [
+    "README.md",
+    "bin"
+  ],
   "scripts": {
-    "test": "jest"
+    "test": "node --test test/",
+    "lint": "biome check .",
+    "format": "biome format --write ."
   },
   "repository": {
     "type": "git",
@@ -21,12 +28,10 @@
     "node": ">=22.12"
   },
   "dependencies": {
-    "get-stdin": "^9.0.0",
     "neodoc": "^2.0.2",
-    "redent": "^4.0.0",
     "xregexp": "^5.1.1"
   },
   "devDependencies": {
-    "jest": "^29.7.0"
+    "@biomejs/biome": "^2.0.0"
   }
 }
