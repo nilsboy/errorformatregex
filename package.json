@@ -9,7 +9,7 @@
     "bin"
   ],
   "scripts": {
-    "test": "node --test test/",
+    "test": "node --test",
     "lint": "biome check .",
     "format": "biome format --write ."
   },
